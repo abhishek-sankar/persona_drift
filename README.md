@@ -44,6 +44,7 @@ You can also skip local generation by downloading precomputed self-chats from [G
 
 ## Running on Modal
 
+
 `modal_app.py` mirrors the CLI workflow inside Modal’s serverless environment.
 
 1. **Create the Replicate secret** (replace the token with your own):
