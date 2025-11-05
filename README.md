@@ -22,9 +22,11 @@ wget https://huggingface.co/datasets/Naomibas/llm-system-prompts-benchmark/raw/m
 
 ## Generating Self-Chats
 
-For example, `python run.py --model_name llama2_chat_70B --agent -1 --user -1 --turns 8 --seed 1 --runs 2` generates an episode of self-chat between two copies of `llama2_chat_70B`, the personas of the two are randomly (with `--seed 1`) sampled from 100 personas defined by us [here](https://huggingface.co/datasets/Naomibas/llm-system-prompts-benchmark). The conversation will go for `8 (--turns)` turns (or `4` rounds). At each turn for the agent (2, 4, ..., 8), the probe question is asked `2 (--runs)` times. Results will be saved into `selfchat` folder.
+For example, `python run.py --model_name meta/llama-4-scout-instruct --agent -1 --user -1 --turns 8 --seed 1 --runs 2` generates an episode of self-chat between two copies of the model hosted on Replicate, with personas for the two randomly (with `--seed 1`) sampled from 100 personas defined by us [here](https://huggingface.co/datasets/Naomibas/llm-system-prompts-benchmark). The conversation will go for `8 (--turns)` turns (or `4` rounds). At each turn for the agent (2, 4, ..., 8), the probe question is asked `2 (--runs)` times. Results will be saved into `selfchat` folder. When the optional dependencies required by the Hugging Face dataset (namely `nltk`, `langdetect`, and `requests`) are not installed, the script automatically falls back to a lightweight in-repo subset of personas so that offline testing still works.
 
-Note that the model can be from HuggingFace or API calls like `--model_name gpt-3.5-turbo-16k`. The code is easily hackable so that you can swap in your locally built model. 
+Replicate access requires setting `REPLICATE_API_TOKEN` in your environment (for example, `export REPLICATE_API_TOKEN=...`). Model aliases such as `llama2_chat_7B` continue to work and resolve to `meta/llama-4-scout-instruct` when using Replicate.
+
+Note that the model can also be an OpenAI Chat Completion endpoint such as `--model_name gpt-3.5-turbo-16k`. The code is easily hackable so that you can swap in your own hosted model if desired.
 
 You can also skip this process by downloading self-chat histories from [this google drive](https://drive.google.com/drive/folders/1Iho3KfDbpxrMzEBum_VriKaUuaMji7zu?usp=sharing) and put them into `selfchat` folder.
 
