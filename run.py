@@ -1,19 +1,23 @@
 import os
 
+import argparse
+import copy
+import importlib
+import importlib.util
 import json
 import pickle
 import random
 import time
-from pprint import pprint
-import argparse
-import copy
 from collections import defaultdict
-import importlib
-import importlib.util
+from pathlib import Path
+from pprint import pprint
 from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
 
 from utils import *
+
+SELFCHAT_DIR = Path(os.environ.get("SELFCHAT_DIR", "selfchat"))
+SELFCHAT_DIR.mkdir(parents=True, exist_ok=True)
 
 _full_dataset_available = all(
     importlib.util.find_spec(module_name) is not None
@@ -43,7 +47,7 @@ other_personas = [_[__:] for _, __ in zip([pattern_system_prompts, multiple_choi
 for _ in other_personas:
     personas.extend(_)
 
-def main():
+def main(argv: list[str] | None = None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default='llama2_chat_7B')
     parser.add_argument('--agent', type=int, default=-1, choices=[-1, ] + list(range(len(personas))))
@@ -52,7 +56,7 @@ def main():
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--turns', type=int, default=16)
     parser.add_argument('--runs', type=int, default=1)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     random.seed(args.seed)
 
@@ -154,11 +158,13 @@ def main():
             return str(output)
         
     # task management
-    file_name = f"{args.model_name}_agent_{args.agent}_user_{args.user}_turn_{args.turns}"
-    file_name += ".pkl"
+    file_name = (
+        f"{args.model_name}_agent_{args.agent}_user_{args.user}_turn_{args.turns}.pkl"
+    )
+    output_path = SELFCHAT_DIR / file_name
     
     try:  # resuming halfway jobs if possible
-        with open(f"selfchat/{file_name}", "rb") as handle:
+        with output_path.open("rb") as handle:
             old_pkl = pickle.load(handle)
         pkl = {
             "topic": topic, 
@@ -194,7 +200,7 @@ def main():
         tok = time.time()
         print(f"Time taken for turn {turn}: {tok-tick:.2f} seconds")
         if len(pkl["history"]) % 2 == 0:
-            with open(f"selfchat/{file_name}", "wb") as handle:
+            with output_path.open("wb") as handle:
                 pickle.dump(pkl, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     for turn in range(2, args.turns+1, 2):  # for 2, 4, 6, 8, 10, ...
@@ -216,10 +222,10 @@ def main():
             tok = time.time()
             print(f"Time taken for probe turn {turn} ({_+1}/{runs_to_run}): {tok-tick:.2f} seconds")
 
-        with open(f"selfchat/{file_name}", "wb") as handle:
+        with output_path.open("wb") as handle:
             pickle.dump(pkl, handle, protocol=pickle.HIGHEST_PROTOCOL)
             
-    pprint(f"Saved to selfchat/{file_name}")
+    pprint(f"Saved to {output_path}")
 
 if __name__ == '__main__':
     main()

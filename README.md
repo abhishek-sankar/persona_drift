@@ -1,40 +1,72 @@
 # Model Drift
 
-This repository provides the code for plotting persona drift in LLM-based chatbots, as discussed in [Measuring and Controlling Persona Drift in Language Model Dialogs](https://arxiv.org/html/2402.10962v1). 
+Code accompanying [Measuring and Controlling Persona Drift in Language Model Dialogs](https://arxiv.org/html/2402.10962v1). It reproduces the self-chat experiments, stores conversation logs, and includes utilities for visualizing persona drift.
 
-## Abstract
+## Quick start
 
-> Prompting is a standard tool for customizing language-model chatbots, enabling them to take on a specific "persona". An implicit assumption in the use of prompts is that they will be stable, so the chatbot will continue to generate text according to the stipulated persona for the duration of a conversation. We propose a quantitative benchmark to test this assumption, evaluating persona stability via self-chats between two personalized chatbots. Testing popular models like LLaMA2-chat-70B, we reveal a significant persona drift within eight rounds of conversations. An empirical and theoretical analysis of this phenomenon suggests the transformer attention mechanism plays a role, due to attention decay over long exchanges. To combat attention decay and persona drift, we propose a lightweight method called split-softmax, which compares favorably against two strong baselines.
+1. **Create a Python environment (3.9+).** Either let Conda resolve packages from `environment.yml` (removing the Linux-specific pins if you are on macOS/Windows) or create a fresh virtual environment and install the dependencies you need:
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -U pip
+   pip install datasets langdetect nltk  # optional; omit if you only need the bundled subset
+   ```
 
-## Installation
+2. **Export your Replicate token.** The Replicate-hosted `meta/llama-4-scout-instruct` model is the default backend, so the token must be present in your environment:
+   ```bash
+   export REPLICATE_API_TOKEN=...  # required for any Replicate invocation
+   ```
 
-To install:
-```
-conda env create -f environment.yml
-conda activate drift
-python -m ipykernel install --user --name drift --display-name "drift"
-```
+3. **Run the self-chat driver.**
+   ```bash
+   python run.py \
+     --model_name meta/llama-4-scout-instruct \
+     --agent -1 --user -1 \
+     --turns 8 --runs 2 --seed 1
+   ```
+   The script samples personas, launches a self-chat of eight turns (four rounds), and saves artifacts under `selfchat/` by default. Set `SELFCHAT_DIR=/path/to/output` to override the destination.
 
-<!-- Then we download the [dataset](https://huggingface.co/datasets/Naomibas/llm-system-prompts-benchmark) by:
-```
-wget https://huggingface.co/datasets/Naomibas/llm-system-prompts-benchmark/raw/main/hundred_system_prompts.py
-``` -->
+Optional dependencies (`datasets`, `langdetect`, `nltk`) enable the full 100-persona benchmark. Without them the script transparently falls back to the bundled subset in `minimal_prompts.py`, which is sufficient for smoke tests or running on air-gapped systems.
 
-## Generating Self-Chats
+## Running targeted experiments
 
-For example, `python run.py --model_name meta/llama-4-scout-instruct --agent -1 --user -1 --turns 8 --seed 1 --runs 2` generates an episode of self-chat between two copies of the model hosted on Replicate, with personas for the two randomly (with `--seed 1`) sampled from 100 personas defined by us [here](https://huggingface.co/datasets/Naomibas/llm-system-prompts-benchmark). The conversation will go for `8 (--turns)` turns (or `4` rounds). At each turn for the agent (2, 4, ..., 8), the probe question is asked `2 (--runs)` times. Results will be saved into `selfchat` folder. When the optional dependencies required by the Hugging Face dataset (namely `nltk`, `langdetect`, and `requests`) are not installed, the script automatically falls back to a lightweight in-repo subset of personas so that offline testing still works.
+- **Limit to a slice of personas.** The persona indices are zero-based. To approximate a 5 % sample of the full list, run indices `0–4`:
+  ```bash
+  for idx in $(seq 0 4); do
+    python run.py --model_name meta/llama-4-scout-instruct \
+      --agent $idx --user $idx --turns 8 --runs 1 --seed 1
+  done
+  ```
+- **Use other chat backends.** Any provider that follows the OpenAI Chat Completions schema can be integrated by swapping `--model_name`. Aliases defined in `utils.py` (for example, `llama2_chat_7B`) transparently resolve to the Replicate model.
+- **Resume or inspect existing runs.** Conversation logs are JSON files in `selfchat/`. Re-running with the same arguments appends new data without overwriting previous logs.
 
-Replicate access requires setting `REPLICATE_API_TOKEN` in your environment (for example, `export REPLICATE_API_TOKEN=...`). Model aliases such as `llama2_chat_7B` continue to work and resolve to `meta/llama-4-scout-instruct` when using Replicate.
+You can also skip local generation by downloading precomputed self-chats from [Google Drive](https://drive.google.com/drive/folders/1Iho3KfDbpxrMzEBum_VriKaUuaMji7zu?usp=sharing) and dropping them into `selfchat/`.
 
-Note that the model can also be an OpenAI Chat Completion endpoint such as `--model_name gpt-3.5-turbo-16k`. The code is easily hackable so that you can swap in your own hosted model if desired.
+## Running on Modal
 
-You can also skip this process by downloading self-chat histories from [this google drive](https://drive.google.com/drive/folders/1Iho3KfDbpxrMzEBum_VriKaUuaMji7zu?usp=sharing) and put them into `selfchat` folder.
 
-## Plotting Persona Drift
+`modal_app.py` mirrors the CLI workflow inside Modal’s serverless environment.
 
-Please check out `plot_convergence.ipynb`.
+1. **Create the Replicate secret** (replace the token with your own):
+   ```bash
+   modal secret create replicate-api-token --env REPLICATE_API_TOKEN=YOUR_TOKEN
+   ```
+2. **Provision persistent storage** (one-time setup):
+   ```bash
+   modal volume create persona-drift-selfchat
+   ```
+3. **Launch a run** with your desired arguments:
+   ```bash
+   modal run modal_app.py::run_selfchat -- --turns 8 --runs 2 --agent -1 --user -1 --seed 1
+   ```
 
-## How to Cite
+Outputs are written to `/modal-selfchat` inside the Modal volume, which you can retrieve via `modal volume get persona-drift-selfchat ./local-selfchat`.
+
+## Plotting persona drift
+
+Use `plot_convergence.ipynb` to reproduce the figures from the paper. Point the notebook at the conversation logs generated in `selfchat/` (or the Modal volume download).
+
+## Citation
 
 ```
 @article{li2024measuring,
