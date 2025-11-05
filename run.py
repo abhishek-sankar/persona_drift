@@ -1,22 +1,41 @@
 import os
 
-from tqdm import tqdm
-import numpy as np
+import json
 import pickle
 import random
 import time
-from functools import partial
 from pprint import pprint
 import argparse
 import copy
-from openai import OpenAI
 from collections import defaultdict
-
-import torch
-import transformers
+import importlib
+import importlib.util
+from urllib import request as urllib_request
+from urllib.error import HTTPError, URLError
 
 from utils import *
-from hundred_system_prompts import *
+
+_full_dataset_available = all(
+    importlib.util.find_spec(module_name) is not None
+    for module_name in ("nltk", "langdetect", "requests")
+)
+
+if _full_dataset_available:
+    from hundred_system_prompts import (
+        pattern_system_prompts,
+        multiple_choice_system_prompts,
+        persona_system_prompts,
+        memorization_system_prompts,
+        language_system_prompts,
+    )
+else:
+    from minimal_prompts import (
+        pattern_system_prompts,
+        multiple_choice_system_prompts,
+        persona_system_prompts,
+        memorization_system_prompts,
+        language_system_prompts,
+    )
 
 index_list = [0, 0, 0, 0, 0]
 personas = [_[__] for _, __ in zip([pattern_system_prompts, multiple_choice_system_prompts, persona_system_prompts, memorization_system_prompts, language_system_prompts], index_list)]
@@ -36,8 +55,18 @@ def main():
     args = parser.parse_args()
 
     random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    np.random.seed(args.seed)
+
+    def seed_optional(module_name: str, attr_path: str, seed_value: int) -> None:
+        if importlib.util.find_spec(module_name) is None:
+            return
+        module = importlib.import_module(module_name)
+        target = module
+        for attr in attr_path.split('.'):
+            target = getattr(target, attr)
+        target(seed_value)
+
+    seed_optional("torch", "manual_seed", args.seed)
+    seed_optional("numpy", "random.seed", args.seed)
     
     if args.agent == -1:
         args.agent = random.randint(0, len(personas)-1)
@@ -53,16 +82,76 @@ def main():
     # load assistant
     use_api = "gpt" in args.model_name
     if use_api:
+        from openai import OpenAI
+
         client = OpenAI()
     else:
-        model = ENGINE_MAP[args.model_name]
-        tokenizer, intervened_model = load_model(model)
-        pipeline = transformers.pipeline(
-            "text-generation",
-            model=intervened_model,
-            tokenizer=tokenizer,
-        )
-        pipeline.tokenizer.encode = partial(pipeline.tokenizer.encode, add_special_tokens=False)
+        replicate_model = ENGINE_MAP.get(args.model_name, args.model_name)
+        replicate_api_token = os.environ.get("REPLICATE_API_TOKEN")
+        if not replicate_api_token:
+            raise EnvironmentError(
+                "REPLICATE_API_TOKEN environment variable must be set to call Replicate models."
+            )
+        headers = {
+            "Authorization": f"Token {replicate_api_token}",
+            "Content-Type": "application/json",
+        }
+        create_url = f"https://api.replicate.com/v1/models/{replicate_model}/predictions"
+
+        def replicate_request(method: str, url: str, payload: dict | None = None) -> dict:
+            data = None
+            if payload is not None:
+                data = json.dumps(payload).encode("utf-8")
+            req = urllib_request.Request(url, data=data, headers=headers, method=method)
+            try:
+                with urllib_request.urlopen(req, timeout=120) as resp:
+                    return json.loads(resp.read().decode("utf-8"))
+            except HTTPError as err:
+                error_body = err.read().decode("utf-8", errors="ignore")
+                raise RuntimeError(
+                    f"Replicate API request failed with status {err.code}: {error_body}"
+                ) from err
+            except URLError as err:
+                raise RuntimeError(f"Replicate API request failed: {err.reason}") from err
+
+        def generate_with_replicate(prompt_text: str) -> str:
+            prediction = replicate_request(
+                "POST",
+                create_url,
+                {
+                    "input": {
+                        "prompt": prompt_text,
+                        "max_tokens": 400,
+                        "temperature": 1.0,
+                        "top_p": 0.9,
+                        "presence_penalty": 0,
+                        "frequency_penalty": 0,
+                    }
+                },
+            )
+            prediction_id = prediction["id"]
+            status = prediction.get("status", "")
+
+            while status not in {"succeeded", "failed", "canceled"}:
+                time.sleep(1.5)
+                prediction = replicate_request(
+                    "GET",
+                    f"https://api.replicate.com/v1/predictions/{prediction_id}",
+                )
+                status = prediction.get("status", "")
+
+            if status != "succeeded":
+                error_message = prediction.get("error", "unknown error")
+                raise RuntimeError(
+                    f"Replicate prediction {prediction_id} finished with status '{status}': {error_message}"
+                )
+
+            output = prediction.get("output", "")
+            if isinstance(output, list):
+                return "".join(str(chunk) for chunk in output)
+            if output is None:
+                return ""
+            return str(output)
         
     # task management
     file_name = f"{args.model_name}_agent_{args.agent}_user_{args.user}_turn_{args.turns}"
@@ -100,18 +189,7 @@ def main():
             completion = client.chat.completions.create(model=args.model_name, messages=messages)
             sequence = completion.choices[0].message.content
         else:
-            sequences = pipeline(
-                prompt, 
-                do_sample=True,
-                top_p=0.9,
-                temperature=1.0,
-                num_return_sequences=1,
-                eos_token_id=pipeline.tokenizer.eos_token_id,
-                max_new_tokens=400,
-                return_full_text=False,
-                clean_up_tokenization_spaces=True,
-            )
-            sequence = sequences[0]['generated_text']
+            sequence = generate_with_replicate(prompt)
         pkl["history"].append(process_answer(sequence))
         tok = time.time()
         print(f"Time taken for turn {turn}: {tok-tick:.2f} seconds")
@@ -133,18 +211,7 @@ def main():
                 completion = client.chat.completions.create(model=args.model_name, messages=messages)
                 sequence = completion.choices[0].message.content
             else:
-                sequences = pipeline(
-                    prompt, 
-                    do_sample=True,
-                    top_p=0.9,
-                    temperature=1.0,
-                    num_return_sequences=1,
-                    eos_token_id=pipeline.tokenizer.eos_token_id,
-                    max_new_tokens=400,
-                    return_full_text=False,
-                    clean_up_tokenization_spaces=True,
-                )
-                sequence = sequences[0]['generated_text']
+                sequence = generate_with_replicate(prompt)
             pkl["probed_history_per_turn"][turn].append(process_answer(sequence))
             tok = time.time()
             print(f"Time taken for probe turn {turn} ({_+1}/{runs_to_run}): {tok-tick:.2f} seconds")

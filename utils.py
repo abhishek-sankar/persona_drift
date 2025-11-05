@@ -1,22 +1,23 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM
+import re
 
-import nltk
-from nltk.tokenize import word_tokenize
-from nltk.corpus import words
-
-nltk.download('punkt')
-nltk.download('words')
+BASIC_ENGLISH_VOCAB = {
+    "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not",
+    "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from",
+    "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would",
+    "there", "their", "what", "so", "up", "out", "if", "about", "who", "get", "which",
+    "go", "me", "when", "make", "can", "like", "time", "no", "just", "him", "know",
+    "take", "people", "into", "year", "your", "good", "some", "could", "them", "see",
+    "other", "than", "then", "now", "look", "only", "come", "its", "over", "think",
+    "also", "back", "after", "use", "two", "how", "our", "work", "first", "well",
+    "way", "even", "new", "want", "because", "any", "these", "give", "day", "most"
+}
 
 def is_fluent_english(text):
-    english_vocab = set(w.lower() for w in words.words())
-    tokens = word_tokenize(text)
-    num_words = len(tokens)
-    num_real_words = sum(token.lower() in english_vocab for token in tokens)
-
-    if num_words == 0:
-        return 0.
-    real_word_ratio = num_real_words / num_words
-
+    tokens = re.findall(r"[A-Za-z']+", text.lower())
+    if not tokens:
+        return 0.0
+    known = sum(token in BASIC_ENGLISH_VOCAB for token in tokens)
+    real_word_ratio = known / len(tokens)
     return float(real_word_ratio > 0.5)
 
 DEFAULT_SYSTEM_PROMPT = f"""You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Please ensure that your responses are socially unbiased and positive in nature. If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information."""
@@ -70,9 +71,9 @@ topics = [
 ]
 
 ENGINE_MAP = {
-    'llama2_7B': 'meta-llama/Llama-2-7b-hf', 
-    'llama2_chat_7B': 'meta-llama/Llama-2-7b-chat-hf', 
-    'llama2_chat_70B': 'meta-llama/Llama-2-70b-chat-hf', 
+    "llama2_7B": "meta/llama-4-scout-instruct",
+    "llama2_chat_7B": "meta/llama-4-scout-instruct",
+    "llama2_chat_70B": "meta/llama-4-scout-instruct",
 }
 
 B_INST, E_INST = "[INST]", "[/INST]"
@@ -155,9 +156,3 @@ def pkl2dict(pkl):
             else:
                 res.append({"role": "assistant", "content": msg})
     return res
-
-
-def load_model(model):
-    tokenizer = AutoTokenizer.from_pretrained(model)
-    model = AutoModelForCausalLM.from_pretrained(model, device_map="auto", load_in_8bit=True)
-    return tokenizer, model
