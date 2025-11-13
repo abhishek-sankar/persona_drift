@@ -10,7 +10,7 @@ import requests
 
 # Get a list of frequent words and a list of one-syllable words
 def download_file(url):
-    response = requests.get(url)
+    response = requests.get(url, timeout=30)
     response.raise_for_status()  
     content_list = response.text.splitlines()
     return content_list
@@ -18,8 +18,15 @@ def download_file(url):
 # Get frequent words
 frequent_words_list = set(download_file("https://raw.githubusercontent.com/first20hours/google-10000-english/master/google-10000-english-usa.txt"))
 
-# Get one syllable words
-one_syllable_words_list = set(download_file("https://raw.githubusercontent.com/gautesolheim/25000-syllabified-words-list/master/one-syllable-sorted-by-prevalence.txt"))
+# Get one syllable words from the syllabified word list
+# Words without semicolons are one-syllable words (e.g., "the" vs "a;bout")
+all_words_raw = download_file("https://raw.githubusercontent.com/gautesolheim/25000-syllabified-words-list/main/all-words-sorted-by-frequency.txt")
+one_syllable_words_list = set()
+for word_line in all_words_raw:
+    word_line = word_line.strip()
+    # Only include words that don't have semicolons (one-syllable words)
+    if word_line and ';' not in word_line:
+        one_syllable_words_list.add(word_line.lower())
 
 nltk.download("punkt")
 nltk.download('vader_lexicon')

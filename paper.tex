@@ -1,0 +1,361 @@
+\documentclass[11pt]{article}
+
+% Change "review" to "final" to generate the final (sometimes called camera-ready) version.
+% Change to "preprint" to generate a non-anonymous version with page numbers.
+\usepackage[preprint]{acl}
+
+% Standard package includes
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage{amsmath}
+
+% For proper rendering and hyphenation of words containing Latin characters (including in bib files)
+\usepackage[T1]{fontenc}
+% For Vietnamese characters
+% \usepackage[T5]{fontenc}
+% See https://www.latex-project.org/help/documentation/encguide.pdf for other character sets
+
+% This assumes your files are encoded as UTF8
+\usepackage[utf8]{inputenc}
+
+% This is not strictly necessary, and may be commented out,
+% but it will improve the layout of the manuscript,
+% and will typically save some space.
+\usepackage{microtype}
+
+% This is also not strictly necessary, and may be commented out.
+% However, it will improve the aesthetics of text in
+% the typewriter font.
+\usepackage{inconsolata}
+
+%Including images in your LaTeX document requires adding
+%additional package(s)
+\usepackage{graphicx}
+
+% If the title and author information does not fit in the area allocated, uncomment the following
+%
+%\setlength\titlebox{<dim>}
+%
+% and set <dim> to something 5cm or larger.
+\title{ANLP F25 - Project Proposal}
+
+\author{Abhishek Sankar, Smit Patel, Anushka Bhave \\
+  Master of Science in Artificial Intelligence and Innovation (MSAII) \\
+  Carnegie Mellon University \\
+  Pittsburgh, PA 15213 \\
+  \texttt{\{asankar2, smitp, abhave\}@andrew.cmu.edu} \\}
+
+
+\begin{document}
+\maketitle
+\begin{abstract}
+Large language models (LLMs) can adopt predefined personas such as a doctor, teacher, or customer service agent, but struggle to maintain these identities consistently across multi-turn interactions. This instability known as \emph{persona drift} causes models to contradict themselves, lose stylistic coherence, or even assume the user’s role. While persona-grounded datasets such as PersonaChat \citep{zhang2018personalizing} have improved short-term adherence, existing methods fail to capture long-term stability or the trade-off between persona fidelity and conversational quality. This project investigates how persona drift emerges and how it can be mitigated in open-source LLMs. We propose to (1) reproduce recent persona drift benchmarks to quantify identity degradation across dialogue turns \citep{li2024measuringdrift} and (2) test lightweight mitigation strategies such as persona memory refresh and contrastive persona alignment \citep{ji2025pcl}. By unifying quantitative drift metrics with qualitative analyses, we aim to provide a reproducible evaluation framework for measuring and reducing persona drift in open-domain and task-oriented dialogue.
+\end{abstract}
+\section{Motivation}
+Large Language Models (LLMs) have demonstrated remarkable conversational fluency and versatility, allowing them to assume various roles such as customer support agents, tutors, or creative characters. However, these systems often fail to maintain coherent identities across extended interactions, a phenomenon commonly referred to as \emph{persona drift}. When a model drifts from its assigned persona, it can contradict its own prior statements, lose stylistic consistency, or inadvertently adopt the user’s perspective. Such inconsistencies degrade user trust, reduce task reliability, and can lead to ethically concerning or confusing behaviors.
+
+Persona consistency is not only an issue of stylistic alignment but also of \textbf{value stability}. As LLMs become central to human–AI collaboration, their ability to preserve persona-specific beliefs and values over time becomes essential for safety, interpretability, and human preference alignment. Current dialogue systems often rely on short, static persona prompts that decay in influence as conversations grow longer. Without explicit mechanisms for identity reinforcement, even fine-tuned instruction-following models tend to regress to a generic or “neutral” voice after several turns.
+
+Moreover, persona drift undermines applications where identity persistence is integral, such as therapeutic chatbots, educational tutors, or brand-aligned customer service systems. From a research perspective, studying drift also provides a window into the internal dynamics of alignment: how conditioning signals fade, how memory interacts with attention, and how different architectures or decoding strategies influence identity retention.
+
+This project therefore aims to systematically quantify and mitigate persona drift in open-source dialogue models. We focus on long-context, multi-turn interactions where identity coherence is most fragile, combining reproducible drift measurement \citep{li2024measuringdrift} with lightweight mitigation strategies such as memory refresh and persona-aware contrastive learning \citep{ji2025pcl}. By doing so, we seek to better understand how model alignment deteriorates over time and how to design interventions that preserve consistent, human-aligned personas without retraining large models.
+
+
+
+\section{Related Work}
+Research on persona-grounded dialogue systems has evolved from static persona conditioning to dynamic identity modeling. Early work such as \citet{zhang2018personalizing} introduced \textbf{PersonaChat}, where models learn to generate responses consistent with short persona descriptions. While these models improve engagement, subsequent studies revealed frequent self-contradictions and context loss over long conversations.
+
+\citet{shuster2022amimeoryou} formalized this issue as \textbf{persona drift}, showing that dialogue agents often adopt the user’s identity or forget their own persona after several turns. Their human and automatic evaluations demonstrated that even large-scale pretrained models lack mechanisms to preserve identity coherence. Follow-up work by \citet{chen2023entailmentmemory} proposed using entailment and discourse-aware memory modules to enforce logical consistency between utterances and persona statements, yielding measurable improvements on PersonaChat and DSTC7 datasets.
+
+Recent studies have focused on evaluating and mitigating drift in LLMs. \citet{li2024measuringdrift} introduced a benchmark quantifying persona degradation across dialogue rounds and attributed drift to attention decay within transformer architectures. They proposed an inference-time adjustment, \textit{split-softmax}, which improves persona retention without retraining. Complementary to this, \citet{shea2023offlinerl} used offline reinforcement learning with a persona consistency reward to discourage contradictions in dialogue generation, balancing persona adherence and linguistic diversity.
+
+In parallel, work on alignment and role-playing, such as \citet{ji2025pcl}, leveraged persona-aware contrastive learning to maintain in-character responses through self-reflective training, while \citet{saggar2025sbs} proposed self-scoring mechanisms to prefer persona-consistent outputs during inference. Together, these methods illustrate a growing shift toward unified frameworks that measure, explain, and correct persona drift in both open-domain and task-oriented settings.
+
+Despite this progress, open questions remain about the \emph{long-term temporal dynamics} of persona drift and its impact on task reliability. Existing evaluations primarily test short exchanges ($\leq$ 10 turns) and overlook cumulative identity decay. This project aims to extend prior work by systematically measuring drift beyond existing horizons and exploring low-cost interventions for preserving persona salience in open-source dialogue models.
+
+\section{Initial Proposed Approaches}
+We plan to pursue two complementary approaches to study and mitigate persona drift in large language models. \\
+
+\textbf{Approach A: Baseline Reproduction, Long-Horizon Extension, and Decoding/Selection Ablations.}
+We will reproduce the open-source benchmark from \citet{li2024measuringdrift} to quantify persona degradation across multi-turn dialogues. Using LLaMA-3-8B-Instruct as the primary model (with Mistral-7B as an ablation), we will replicate their self-chat setup and extend evaluation to at least 20 turns to capture long-horizon drift. This provides a controlled baseline and error taxonomy for subsequent methods.
+
+\emph{Metrics.} We measure (i) \textbf{Persona consistency} (embedding similarity between responses and persona statements), (ii) \textbf{Contradiction rate} (NLI-based), (iii) \textbf{Drift Index} (temporal divergence vs.\ early persona-grounded turns), and (iv) \textbf{Conversation quality} (BERTScore). We complement with human annotations of drift types (factual contradiction, stylistic loss, role confusion).
+
+\emph{Decoding \& selection protocol.} To isolate how generation strategies affect drift, we run a controlled suite of decoding/selection methods, keeping prompts, seeds, and temperature grids fixed. We evaluate:
+
+\begin{enumerate}
+    \item \textbf{Greedy} (deterministic baseline).
+    \item \textbf{Nucleus sampling} ($p\in\{0.9\}$, $T\in\{0.7,0.9\}$).
+    \item \textbf{Beam search} (beams $\in\{3,5\}$, length-penalty tuned on dev). We include beam as a \emph{diagnostic} despite its known tendency to reduce diversity in open-domain dialogue.
+    \item \textbf{Best-of-$n$ sampling with persona-aware re-ranking} ($n\in\{3,5\}$). For each turn, sample $n$ candidates under identical decoding hyperparameters, then select $\arg\max_{y\in\mathcal{Y}_n} s(y)$ with
+    \[
+        s(y) \;=\; \alpha\,\mathrm{sim}_\text{persona} (y,\pi)\;+\;\beta\,\mathrm{sim}_\text{context}(y, C_t)\;+\;\gamma\,\mathrm{LP}(y),
+    \]
+    where $\mathrm{sim}_\text{persona}$ is embedding cosine similarity between the candidate $y$ and the persona spec $\pi$, $\mathrm{sim}_\text{context}$ is similarity to the running dialogue context $C_t$ (relevance), and $\mathrm{LP}$ is an optional length penalty to avoid degenerate short replies. We start with $(\alpha,\beta,\gamma)=(1,0.5,0)$ and tune on a small dev split. This selection is \emph{post-hoc} (no gradients) and keeps compute modest.
+\end{enumerate}
+
+For fairness, all methods use identical turn budgets and context windows; we log (i) token counts, (ii) wall-clock per turn, and (iii) acceptance rate of re-ranked outputs to quantify latency/compute trade-offs. We pre-register the primary endpoint as \textbf{Drift Index@20} and secondary endpoints as contradiction rate and persona consistency.
+
+
+\textbf{Approach B: Drift-Aware Persona Retention via Logit Dynamics and Direct Preference Optimization.}
+We propose two complementary methods for mitigating persona drift: (1) \emph{drift detection through logit distribution monitoring}, and (2) \emph{persona adherence reinforcement via Direct Preference Optimization (DPO)}. These methods target different stages of the generation process—one acting as a continuous, inference-time diagnostic and correction mechanism, and the other as a lightweight fine-tuning approach to reinforce persona consistency.
+
+The \emph{logit distribution drift detector} leverages the internal output distribution of the language model to monitor persona degradation over multi-turn dialogue. Specifically, we will first record the logit distribution of the model’s initial persona-conditioned response, which reflects its calibrated alignment with the given identity. In subsequent turns, where persona context is omitted or partially decayed, we will compare the logit distributions of new outputs to the baseline persona-conditioned logits using measures such as Jensen–Shannon divergence or KL divergence. A rising divergence value will signal semantic drift or identity instability.
+Once drift surpasses a pre-defined threshold, an automatic \emph{persona re-injection mechanism} will be triggered—dynamically reintroducing the original persona context or a compressed persona-grounded summary to restore alignment. This adaptive, on-demand refresh avoids redundant repetition while maintaining computational efficiency. By relying on intrinsic logit signals rather than explicit supervision, this method enables real-time persona tracking and correction during conversation without retraining or large-scale annotation.
+
+The second component, \emph{Direct Preference Optimization (DPO) for persona adherence}, provides a complementary offline alignment strategy. We will instantiate two identical copies of the same base LLM:
+(1) one that receives the persona context at every conversational turn (\emph{persona-reinforced model}), and
+(2) another that receives the persona only once at the beginning (\emph{context-decayed model}).
+Both models will then engage in multi-turn dialogue under identical prompts. The persona-reinforced model’s outputs will serve as \emph{preferred responses}, while the context-decayed model’s outputs—likely exhibiting drift—will serve as \emph{less preferred responses}. Using DPO~\citep{rafailov2023direct}, we will optimize the model’s parameters to increase the likelihood of preferred, persona-aligned generations over less-aligned ones.
+This contrastive preference training enables the model to internalize persona coherence as a learned prior, improving long-term identity stability without requiring costly reinforcement learning or labeled datasets.
+
+Together, these methods provide both inference-time and training-time pathways for mitigating persona drift. The logit-based approach ensures continuous, interpretable monitoring of persona consistency, while DPO-based fine-tuning encourages structural adherence to persona characteristics across turns. Both are reproducible and computationally efficient, requiring minimal additional resources beyond the base model inference and training infrastructure.
+\\\\
+\textbf{(Optional) Extension: Dynamic Persona Conditioning via Dialogue-State Tracking.}
+To further explore how persona drift evolves over time, we propose an additional exploratory approach inspired by dialogue-state tracking. Instead of static persona reminders, this method dynamically tracks persona adherence and issues corrective interventions when drift is detected. A lightweight classifier or similarity function can measure persona deviation at each turn; if the deviation exceeds a threshold, a corrective prompt such as
+\begin{quote}
+``Stay consistent with your identity as a calm and logical teacher.''
+\end{quote}
+is appended to the model’s next input.  
+This adaptive control loop enables real-time persona stabilization, offering insights into the temporal dynamics of drift and whether it accumulates gradually or appears abruptly. The approach remains efficient and can be integrated into existing evaluation pipelines with minimal overhead.
+
+
+\section{Initial Proposed Data}
+We will use a combination of open-domain and task-oriented datasets that explicitly encode persona or role information.
+
+\textbf{PersonaChat} \citep{zhang2018personalizing} serves as our primary benchmark for evaluating open-domain persona grounding. It provides short persona profiles and conversational data between paired agents, making it ideal for controlled drift measurement.
+
+\textbf{RoleBench} \cite{yuan2025dmt} extends persona evaluation to multiple social and professional roles (e.g., teacher, doctor, engineer) and includes annotations for role adherence, enabling fine-grained analysis of identity consistency.
+
+For limited task-oriented experiments, we will incorporate \textbf{Persona-augmented MultiWOZ} \cite{budzianowski2018multiwoz}, which merges goal-oriented dialogue with persona attributes. This dataset allows testing whether persona drift affects task completion rates.
+
+All data are publicly available and lightweight, ensuring computational feasibility. Basic preprocessing will include persona text normalization, dialogue segmentation by turn, and standard tokenization. Synthetic multi-turn expansions may be generated for long-horizon testing.
+
+\section{Initial Proposed Evaluation}
+We will evaluate models across both \emph{persona consistency} and \emph{conversation quality} dimensions, using quantitative and qualitative metrics. Our evaluation framework is designed to capture not only how well models maintain persona alignment over time but also how these constraints affect dialogue fluency, coherence, and informativeness. All evaluations will be reproducible, using open-source toolkits and public benchmarks.
+
+\textbf{Quantitative metrics:}
+We will employ several complementary automatic measures to quantify persona drift and its effect on overall dialogue quality:
+
+\begin{enumerate}
+    \item \textbf{Persona adherence score:} the cosine similarity between embeddings of model responses and the reference persona statements. Embeddings will be computed using contextual encoders such as Sentence-BERT~\citep{reimers2019sentence}. This metric captures semantic alignment with persona traits (e.g., friendliness, expertise, tone).
+    \item \textbf{Contradiction rate:} the proportion of dialogue turns that violate persona facts or attributes, automatically detected using a Natural Language Inference (NLI) classifier (e.g., RoBERTa-large-MNLI). A higher contradiction rate indicates explicit persona inconsistency, such as a model denying its stated profession or values.
+    \item \textbf{Drift index:} A temporal measure of persona degradation, defined as the rate of semantic deviation between current responses and early-turn persona-grounded utterances. We will compute this using cosine distance or embedding divergence across turns to quantify how persona-related language decays over time.
+    \item \textbf{Fluency and relevance:} Standard dialogue metrics such as BLEU, ROUGE-L, and BERTScore will be reported to assess whether persona adherence affects overall linguistic quality and informativeness.
+\end{enumerate}
+
+\textbf{Qualitative analysis:}
+We will manually inspect representative dialogues to categorize drift types and understand underlying behavioral patterns. Annotators will identify instances of:
+\begin{itemize}
+    \item \textbf{Factual contradiction:} when the model generates content that directly conflicts with the given persona traits or facts.
+    \item \textbf{Stylistic loss:} when the linguistic tone or expression diverges from the original persona’s style (e.g., a friendly teacher becoming overly formal).
+    \item \textbf{Value inversion:} when the model adopts positions or opinions inconsistent with its persona’s moral or social alignment.
+\end{itemize}
+In addition, we will rate each conversation on three axes: \textbf{coherence}, \textbf{fluency}, and \textbf{persona stability}. To ensure annotation reliability, we will use double-annotated samples and compute inter-annotator agreement (Cohen’s $\kappa$).
+
+\textbf{Interpretability and Trade-offs:}
+To ensure interpretability and fairness across metrics, we will analyze the trade-offs between persona fidelity and general response quality. For instance, while stronger persona constraints may improve adherence scores, they might also reduce fluency or diversity. By reporting both quantitative scores (e.g., persona adherence vs.\ BLEU/BERTScore) and qualitative trends, we aim to provide a holistic view of identity preservation and conversational naturalness.
+
+Together, these evaluation methods form a reproducible and balanced framework for assessing persona drift. The results will enable controlled comparison between baseline and mitigation methods, clarifying whether improved persona stability can be achieved without compromising overall dialogue quality.
+
+
+% \section{Document Body}
+
+% \subsection{Footnotes}
+
+% Footnotes are inserted with the \verb|\footnote| command.\footnote{This is a footnote.}
+
+% \subsection{Tables and figures}
+
+% See Table~\ref{tab:accents} for an example of a table and its caption.
+% \textbf{Do not override the default caption sizes.}
+
+% \begin{table}
+%   \centering
+%   \begin{tabular}{lc}
+%     \hline
+%     \textbf{Command} & \textbf{Output} \\
+%     \hline
+%     \verb|{\"a}|     & {\"a}           \\
+%     \verb|{\^e}|     & {\^e}           \\
+%     \verb|{\`i}|     & {\`i}           \\
+%     \verb|{\.I}|     & {\.I}           \\
+%     \verb|{\o}|      & {\o}            \\
+%     \verb|{\'u}|     & {\'u}           \\
+%     \verb|{\aa}|     & {\aa}           \\\hline
+%   \end{tabular}
+%   \begin{tabular}{lc}
+%     \hline
+%     \textbf{Command} & \textbf{Output} \\
+%     \hline
+%     \verb|{\c c}|    & {\c c}          \\
+%     \verb|{\u g}|    & {\u g}          \\
+%     \verb|{\l}|      & {\l}            \\
+%     \verb|{\~n}|     & {\~n}           \\
+%     \verb|{\H o}|    & {\H o}          \\
+%     \verb|{\v r}|    & {\v r}          \\
+%     \verb|{\ss}|     & {\ss}           \\
+%     \hline
+%   \end{tabular}
+%   \caption{Example commands for accented characters, to be used in, \emph{e.g.}, Bib\TeX{} entries.}
+%   \label{tab:accents}
+% \end{table}
+
+% As much as possible, fonts in figures should conform
+% to the document fonts. See Figure~\ref{fig:experiments} for an example of a figure and its caption.
+
+% Using the \verb|graphicx| package graphics files can be included within figure
+% environment at an appropriate point within the text.
+% The \verb|graphicx| package supports various optional arguments to control the
+% appearance of the figure.
+% You must include it explicitly in the \LaTeX{} preamble (after the
+% \verb|\documentclass| declaration and before \verb|\begin{document}|) using
+% \verb|\usepackage{graphicx}|.
+
+% \begin{figure}[t]
+%   \includegraphics[width=\columnwidth]{example-image-golden}
+%   \caption{A figure with a caption that runs for more than one line.
+%     Example image is usually available through the \texttt{mwe} package
+%     without even mentioning it in the preamble.}
+%   \label{fig:experiments}
+% \end{figure}
+
+% \begin{figure*}[t]
+%   \includegraphics[width=0.48\linewidth]{example-image-a} \hfill
+%   \includegraphics[width=0.48\linewidth]{example-image-b}
+%   \caption {A minimal working example to demonstrate how to place
+%     two images side-by-side.}
+% \end{figure*}
+
+% \subsection{Hyperlinks}
+
+% Users of older versions of \LaTeX{} may encounter the following error during compilation:
+% \begin{quote}
+% \verb|\pdfendlink| ended up in different nesting level than \verb|\pdfstartlink|.
+% \end{quote}
+% This happens when pdf\LaTeX{} is used and a citation splits across a page boundary. The best way to fix this is to upgrade \LaTeX{} to 2018-12-01 or later.
+
+% \subsection{Citations}
+
+% \begin{table*}
+%   \centering
+%   \begin{tabular}{lll}
+%     \hline
+%     \textbf{Output}           & \textbf{natbib command} & \textbf{ACL only command} \\
+%     \hline
+%     \citep{Gusfield:97}       & \verb|\citep|           &                           \\
+%     \citealp{Gusfield:97}     & \verb|\citealp|         &                           \\
+%     \citet{Gusfield:97}       & \verb|\citet|           &                           \\
+%     \citeyearpar{Gusfield:97} & \verb|\citeyearpar|     &                           \\
+%     \citeposs{Gusfield:97}    &                         & \verb|\citeposs|          \\
+%     \hline
+%   \end{tabular}
+%   \caption{\label{citation-guide}
+%     Citation commands supported by the style file.
+%     The style is based on the natbib package and supports all natbib citation commands.
+%     It also supports commands defined in previous ACL style files for compatibility.
+%   }
+% \end{table*}
+
+% Table~\ref{citation-guide} shows the syntax supported by the style files.
+% We encourage you to use the natbib styles.
+% You can use the command \verb|\citet| (cite in text) to get ``author (year)'' citations, like this citation to a paper by \citet{Gusfield:97}.
+% You can use the command \verb|\citep| (cite in parentheses) to get ``(author, year)'' citations \citep{Gusfield:97}.
+% You can use the command \verb|\citealp| (alternative cite without parentheses) to get ``author, year'' citations, which is useful for using citations within parentheses (e.g. \citealp{Gusfield:97}).
+
+% A possessive citation can be made with the command \verb|\citeposs|.
+% This is not a standard natbib command, so it is generally not compatible
+% with other style files.
+
+% \subsection{References}
+
+% \nocite{Ando2005,andrew2007scalable,rasooli-tetrault-2015}
+
+% The \LaTeX{} and Bib\TeX{} style files provided roughly follow the American Psychological Association format.
+% If your own bib file is named \texttt{custom.bib}, then placing the following before any appendices in your \LaTeX{} file will generate the references section for you:
+% \begin{quote}
+% \begin{verbatim}
+% \bibliography{custom}
+% \end{verbatim}
+% \end{quote}
+
+% You can obtain the complete ACL Anthology as a Bib\TeX{} file from \url{https://aclweb.org/anthology/anthology.bib.gz}.
+% To include both the Anthology and your own .bib file, use the following instead of the above.
+% \begin{quote}
+% \begin{verbatim}
+% \bibliography{anthology,custom}
+% \end{verbatim}
+% \end{quote}
+
+% Please see Section~\ref{sec:bibtex} for information on preparing Bib\TeX{} files.
+
+% \subsection{Equations}
+
+% An example equation is shown below:
+% \begin{equation}
+%   \label{eq:example}
+%   A = \pi r^2
+% \end{equation}
+
+% Labels for equation numbers, sections, subsections, figures and tables
+% are all defined with the \verb|\label{label}| command and cross references
+% to them are made with the \verb|\ref{label}| command.
+
+% This an example cross-reference to Equation~\ref{eq:example}.
+
+% \subsection{Appendices}
+
+% Use \verb|\appendix| before any appendix section to switch the section numbering over to letters. See Appendix~\ref{sec:appendix} for an example.
+
+% \section{Bib\TeX{} Files}
+% \label{sec:bibtex}
+
+% Unicode cannot be used in Bib\TeX{} entries, and some ways of typing special characters can disrupt Bib\TeX's alphabetization. The recommended way of typing special characters is shown in Table~\ref{tab:accents}.
+
+% Please ensure that Bib\TeX{} records contain DOIs or URLs when possible, and for all the ACL materials that you reference.
+% Use the \verb|doi| field for DOIs and the \verb|url| field for URLs.
+% If a Bib\TeX{} entry has a URL or DOI field, the paper title in the references section will appear as a hyperlink to the paper, using the hyperref \LaTeX{} package.
+
+% \section*{Limitations}
+
+% This document does not cover the content requirements for ACL or any
+% other specific venue.  Check the author instructions for
+% information on
+% maximum page lengths, the required ``Limitations'' section,
+% and so on.
+
+% \section*{Acknowledgments}
+
+% This document has been adapted
+% by Steven Bethard, Ryan Cotterell and Rui Yan
+% from the instructions for earlier ACL and NAACL proceedings, including those for
+% ACL 2019 by Douwe Kiela and Ivan Vuli\'{c},
+% NAACL 2019 by Stephanie Lukin and Alla Roskovskaya,
+% ACL 2018 by Shay Cohen, Kevin Gimpel, and Wei Lu,
+% NAACL 2018 by Margaret Mitchell and Stephanie Lukin,
+% Bib\TeX{} suggestions for (NA)ACL 2017/2018 from Jason Eisner,
+% ACL 2017 by Dan Gildea and Min-Yen Kan,
+% NAACL 2017 by Margaret Mitchell,
+% ACL 2012 by Maggie Li and Michael White,
+% ACL 2010 by Jing-Shin Chang and Philipp Koehn,
+% ACL 2008 by Johanna D. Moore, Simone Teufel, James Allan, and Sadaoki Furui,
+% ACL 2005 by Hwee Tou Ng and Kemal Oflazer,
+% ACL 2002 by Eugene Charniak and Dekang Lin,
+% and earlier ACL and EACL formats written by several people, including
+% John Chen, Henry S. Thompson and Donald Walker.
+% Additional elements were taken from the formatting instructions of the \emph{International Joint Conference on Artificial Intelligence} and the \emph{Conference on Computer Vision and Pattern Recognition}.
+
+% Bibliography entries for the entire Anthology, followed by custom entries
+%\bibliography{anthology,custom}
+% Custom bibliography entries only
+\bibliographystyle{acl_natbib}
+\bibliography{custom}
+
+\appendix
+
+% \section{Example Appendix}
+% \label{sec:appendix}
+
+% This is an appendix.
+
+\end{document}

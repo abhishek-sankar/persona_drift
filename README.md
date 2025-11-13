@@ -49,7 +49,7 @@ You can also skip local generation by downloading precomputed self-chats from [G
 
 1. **Create the Replicate secret** (replace the token with your own):
    ```bash
-   modal secret create replicate-api-token --env REPLICATE_API_TOKEN=YOUR_TOKEN
+   modal secret create replicate-api-token REPLICATE_API_TOKEN=YOUR_TOKEN
    ```
 2. **Provision persistent storage** (one-time setup):
    ```bash
@@ -57,14 +57,93 @@ You can also skip local generation by downloading precomputed self-chats from [G
    ```
 3. **Launch a run** with your desired arguments:
    ```bash
-   modal run modal_app.py::run_selfchat -- --turns 8 --runs 2 --agent -1 --user -1 --seed 1
+   modal run modal_app.py::run_selfchat --turns 8 --runs 2 --agent -1 --user -1 --seed 1
    ```
+   
+   Note: If you encounter argument parsing errors, try without the `--` separator, as newer versions of Modal may handle arguments differently.
 
 Outputs are written to `/modal-selfchat` inside the Modal volume, which you can retrieve via `modal volume get persona-drift-selfchat ./local-selfchat`.
+
+## Simplified Baseline for Reproducibility
+
+For baseline reproduction experiments (as described in the project proposal), use the simplified scripts:
+
+### Quick Start (Simplified Baseline)
+
+1. **Install dependencies:**
+   ```bash
+   pip install -r requirements_baseline.txt
+   ```
+
+2. **Authenticate with Replicate:**
+   ```bash
+   export REPLICATE_API_TOKEN=your_token_here
+   # optional sanity check
+   curl https://api.replicate.com/v1/account \
+     -H "Authorization: Bearer $REPLICATE_API_TOKEN"
+   ```
+
+3. **Run baseline experiments with different decoding strategies (Replicate-only backend):**
+   ```bash
+   # Greedy decoding
+   python baseline_run.py \
+     --model_name meta/llama-4-scout-instruct \
+     --agent 0 --user 5 \
+     --turns 20 \
+     --decoding greedy \
+     --seed 42
+   
+   # Nucleus sampling
+   python baseline_run.py \
+     --model_name meta/llama-4-scout-instruct \
+     --agent 0 --user 5 \
+     --turns 20 \
+     --decoding nucleus \
+     --top_p 0.9 --temperature 0.7 \
+     --seed 42
+   
+   # Best-of-n with persona/context re-ranking
+   python baseline_run.py \
+     --model_name meta/llama-4-scout-instruct \
+      --agent 0 --user 5 \
+     --turns 20 \
+     --decoding best_of_n \
+     --best_of_n 5 \
+     --alpha 1.0 --beta 0.5 --gamma 0.0 \
+     --seed 42
+   ```
+
+   By default, conversations are saved to `selfchat/` as pickled dictionaries containing the full history, per-turn latency/token telemetry, and (when applicable) best-of-n scoring metadata.
+
+4. **Evaluate metrics and telemetry:**
+   ```bash
+   python evaluate.py \
+     --input selfchat \
+     --output results.csv \
+     --early_turns 3 \
+     --use_gpu         # optional: speeds up embedding/NLI/BERTScore computation
+   ```
+   This writes a CSV (plus a detailed JSON) summarising persona consistency, contradiction rate, drift index, conversation quality, total/average token counts, per-turn latency, and best-of-n selection statistics.
+
+### Features of Simplified Baseline
+
+- **20-Persona Subset**: Curated slice of the original benchmark (`selected_personas.py`) spanning affect, style, and memory behaviours.
+- **Replicate-Only Backend**: All decoding strategies call the Replicate REST API; no OpenAI or local inference required.
+- **Decoding Strategies**: Greedy, nucleus, and best-of-n sampling with persona/context/length re-ranking.
+- **Extended Horizons**: Supports long conversations (20+ turns) with automatic resume support.
+- **Comprehensive Metrics**:
+  - Persona consistency (Sentence-BERT similarity)
+  - Contradiction rate (RoBERTa-MNLI)
+  - Drift index (temporal divergence vs. early turns)
+  - Conversation quality (BERTScore)
+- **Telemetry Logging**: Per-turn latency and token estimates, aggregated summaries, and detailed best-of-n candidate scores for ablations.
+- **Evaluation Pipeline**: `evaluate.py` produces CSV/JSON tables ready for plotting or statistical comparison across decoding settings.
 
 ## Plotting persona drift
 
 Use `plot_convergence.ipynb` to reproduce the figures from the paper. Point the notebook at the conversation logs generated in `selfchat/` (or the Modal volume download).
+
+For simplified baseline results, use `evaluate.py` to generate CSV/JSON outputs that can be easily plotted.
 
 ## Citation
 

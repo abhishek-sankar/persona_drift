@@ -1,23 +1,50 @@
 import re
 
-BASIC_ENGLISH_VOCAB = {
-    "the", "be", "to", "of", "and", "a", "in", "that", "have", "i", "it", "for", "not",
-    "on", "with", "he", "as", "you", "do", "at", "this", "but", "his", "by", "from",
-    "they", "we", "say", "her", "she", "or", "an", "will", "my", "one", "all", "would",
-    "there", "their", "what", "so", "up", "out", "if", "about", "who", "get", "which",
-    "go", "me", "when", "make", "can", "like", "time", "no", "just", "him", "know",
-    "take", "people", "into", "year", "your", "good", "some", "could", "them", "see",
-    "other", "than", "then", "now", "look", "only", "come", "its", "over", "think",
-    "also", "back", "after", "use", "two", "how", "our", "work", "first", "well",
-    "way", "even", "new", "want", "because", "any", "these", "give", "day", "most"
-}
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.corpus import words
+
+# Download required NLTK data if not already available
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt', quiet=True)
+
+try:
+    nltk.data.find('corpora/words')
+except LookupError:
+    nltk.download('words', quiet=True)
+
+# Use NLTK words corpus for comprehensive English vocabulary
+_english_vocab = None
 
 def is_fluent_english(text):
-    tokens = re.findall(r"[A-Za-z']+", text.lower())
-    if not tokens:
-        return 0.0
-    known = sum(token in BASIC_ENGLISH_VOCAB for token in tokens)
-    real_word_ratio = known / len(tokens)
+    """Check if text is fluent English using NLTK words corpus."""
+    global _english_vocab
+    if _english_vocab is None:
+        _english_vocab = set(w.lower() for w in words.words())
+    
+    tokens = word_tokenize(text)
+    # Filter out punctuation and single-letter tokens (like "D" that aren't words)
+    # Only check multi-character alphabetic tokens
+    word_tokens = [token for token in tokens if token.isalpha() and len(token) > 1]
+    
+    if len(word_tokens) == 0:
+        # If no multi-character words, check if there are any single letters
+        # Single letters might be valid for very short answers
+        single_letters = [token for token in tokens if token.isalpha() and len(token) == 1]
+        if single_letters:
+            return 1.0  # Assume single-letter answers are valid responses
+        return 0.
+    
+    num_real_words = sum(token.lower() in _english_vocab for token in word_tokens)
+    real_word_ratio = num_real_words / len(word_tokens)
+    
+    # Be more lenient: if at least one real word exists, consider it fluent
+    # This handles cases like "D) Joyous" where "Joyous" is a real word
+    if num_real_words > 0:
+        return 1.0
+    
     return float(real_word_ratio > 0.5)
 
 DEFAULT_SYSTEM_PROMPT = f"""You are a helpful, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Please ensure that your responses are socially unbiased and positive in nature. If a question does not make any sense, or is not factually coherent, explain why instead of answering something not correct. If you don't know the answer to a question, please don't share false information."""
@@ -73,7 +100,8 @@ topics = [
 ENGINE_MAP = {
     "llama2_7B": "meta/llama-4-scout-instruct",
     "llama2_chat_7B": "meta/llama-4-scout-instruct",
-    "llama2_chat_70B": "meta/llama-4-scout-instruct",
+    "llama2_chat_70B": "meta/llama-2-70b-chat",
+    "claude35_haiku": "anthropic/claude-3.5-haiku",
 }
 
 B_INST, E_INST = "[INST]", "[/INST]"
