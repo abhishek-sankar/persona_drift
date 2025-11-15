@@ -11,6 +11,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 from pprint import pprint
+from typing import List, Optional
 from urllib import request as urllib_request
 from urllib.error import HTTPError, URLError
 
@@ -25,13 +26,25 @@ _full_dataset_available = all(
 )
 
 if _full_dataset_available:
-    from hundred_system_prompts import (
-        pattern_system_prompts,
-        multiple_choice_system_prompts,
-        persona_system_prompts,
-        memorization_system_prompts,
-        language_system_prompts,
-    )
+    try:
+        from hundred_system_prompts import (
+            pattern_system_prompts,
+            multiple_choice_system_prompts,
+            persona_system_prompts,
+            memorization_system_prompts,
+            language_system_prompts,
+        )
+    except (ImportError, Exception) as e:
+        # Fall back to minimal_prompts if hundred_system_prompts fails to import
+        # (e.g., due to network errors downloading external resources)
+        print(f"Warning: Failed to import hundred_system_prompts ({e}), falling back to minimal_prompts")
+        from minimal_prompts import (
+            pattern_system_prompts,
+            multiple_choice_system_prompts,
+            persona_system_prompts,
+            memorization_system_prompts,
+            language_system_prompts,
+        )
 else:
     from minimal_prompts import (
         pattern_system_prompts,
@@ -47,12 +60,12 @@ other_personas = [_[__:] for _, __ in zip([pattern_system_prompts, multiple_choi
 for _ in other_personas:
     personas.extend(_)
 
-def main(argv: list[str] | None = None):
+def main(argv: Optional[List[str]] = None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_name', type=str, default='llama2_chat_7B')
     parser.add_argument('--agent', type=int, default=-1, choices=[-1, ] + list(range(len(personas))))
     parser.add_argument('--user', type=int, default=-1, choices=[-1, ] + list(range(len(personas))))
-    parser.add_argument('--topic', type=int, default=-1, choices=range(len(topics)))
+    parser.add_argument('--topic', type=int, default=-1, choices=[-1] + list(range(len(topics))))
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--turns', type=int, default=16)
     parser.add_argument('--runs', type=int, default=1)
@@ -162,6 +175,8 @@ def main(argv: list[str] | None = None):
         f"{args.model_name}_agent_{args.agent}_user_{args.user}_turn_{args.turns}.pkl"
     )
     output_path = SELFCHAT_DIR / file_name
+    # Ensure parent directories exist (model_name may contain slashes)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     
     try:  # resuming halfway jobs if possible
         with output_path.open("rb") as handle:
